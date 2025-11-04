@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Secure File Upload</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Main Menu -->
+        <div id="mainMenu" class="screen active">
+            <h1>🔐 Quantum Secure File Upload System</h1>
+            <p class="subtitle">Secure your files with quantum-inspired encryption</p>
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="showRegister()">Register</button>
+                <button class="btn btn-secondary" onclick="showLogin()">Login</button>
+            </div>
+        </div>
+
+        <!-- Registration Screen -->
+        <div id="registerScreen" class="screen">
+            <h2>Register New Account</h2>
+            <form id="registerForm" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label for="regUsername">Username</label>
+                    <input type="text" id="regUsername" required>
+                </div>
+                <div class="form-group">
+                    <label for="regPassword">Password</label>
+                    <input type="password" id="regPassword" required minlength="8">
+                </div>
+                <div class="form-group">
+                    <label for="regEmail">Email</label>
+                    <input type="email" id="regEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="regMobile">Mobile</label>
+                    <input type="tel" id="regMobile" required pattern="[0-9]{10,}">
+                </div>
+                <div class="button-group">
+                    <button type="submit" class="btn btn-primary">Register</button>
+                    <button type="button" class="btn btn-secondary" onclick="showMain()">Back</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Login Screen -->
+        <div id="loginScreen" class="screen">
+            <h2>Login</h2>
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="loginEmail">Email</label>
+                    <input type="email" id="loginEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" required>
+                </div>
+                <div class="button-group">
+                    <button type="submit" class="btn btn-primary">Login</button>
+                    <button type="button" class="btn btn-secondary" onclick="showMain()">Back</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Upload Screen -->
+        <div id="uploadScreen" class="screen">
+            <h2>Secure File Upload</h2>
+            <p class="welcome-text">Welcome, <span id="currentUser"></span>!</p>
+            
+            <div class="upload-section">
+                <div class="file-selector">
+                    <label for="fileInput" class="file-label">
+                        <span id="fileName">Select a text file to upload securely</span>
+                        <input type="file" id="fileInput" accept=".txt" onchange="handleFileSelect(event)">
+                    </label>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="handleSecureUpload()" id="uploadBtn" disabled>
+                        🔒 Secure Upload
+                    </button>
+                    <button class="btn btn-secondary" onclick="handleLogout()">Logout</button>
+                </div>
+
+                <div id="uploadStatus" class="status-message"></div>
+            </div>
+
+            <div class="uploaded-files">
+                <h3>Your Encrypted Files</h3>
+                <div id="filesList"></div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay">
+            <div class="spinner"></div>
+            <p>Processing...</p>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Appwrite SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.1"></script>
+    
+    <!-- Application Scripts -->
+    <!-- Optional: appwrite-env.js can be deployed with the site to inject environment values -->
+    <script src="appwrite-env.js"></script>
+    <script src="appwrite-config.js"></script>
+    <script src="crypto.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

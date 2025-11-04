@@ -1,0 +1,23 @@
+{
+  "name": "quantum-secure-file-upload",
+  "version": "1.0.0",
+  "description": "A web-based secure file upload system with quantum-inspired encryption powered by Appwrite",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server -p 8000 -o",
+    "deploy": "appwrite deploy"
+  },
+  "keywords": [
+    "encryption",
+    "appwrite",
+    "file-upload",
+    "quantum",
+    "security"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,11 @@
+// Example appwrite-env.js (DO NOT commit real secrets to git)
+// Copy this file to appwrite-env.js on your deployed site and fill values.
+
+window.APPWRITE_ENV = {
+  APPWRITE_ENDPOINT: 'https://cloud.appwrite.io/v1',
+  APPWRITE_PROJECT_ID: 'YOUR_PROJECT_ID',
+  APPWRITE_DATABASE_ID: 'quantum-secure-db',
+  APPWRITE_USER_DATA_COLLECTION_ID: 'user-data',
+  APPWRITE_KEYS_COLLECTION_ID: 'encryption-keys',
+  APPWRITE_BUCKET_ID: 'encrypted-files'
+};
