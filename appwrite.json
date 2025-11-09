@@ -2,10 +2,5 @@
   "projectId": "quantum-demo",
   "projectName": "Quantum Secure File Upload",
   "functions": [],
-  "deployments": [],
-  "variables": [],
-  "deploymentSettings": {
-    "runtime": "node-18.0"
-  },
-  "adapter": "static"
+  "deployments": []
 }
