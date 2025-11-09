@@ -4,9 +4,9 @@
   "description": "A web-based secure file upload system with quantum-inspired encryption powered by Appwrite",
   "main": "index.html",
   "scripts": {
-    "start": "npx http-server -p 8000 -o",
-    "build": "echo 'Static site - no build needed'",
-    "deploy": "appwrite deploy"
+  "start": "npx http-server -p 8000 -o",
+  "build": "rm -rf dist && mkdir -p dist && cp index.html styles.css app.js crypto.js appwrite-config.js appwrite-env.js.example README.md SETUP.md package.json appwrite.json .gitignore dist/ || true",
+  "deploy": "appwrite deploy"
   },
   "keywords": [
     "encryption",
