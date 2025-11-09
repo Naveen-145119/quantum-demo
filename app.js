@@ -291,9 +291,21 @@ async function downloadFile(fileId, keyDocId, originalFileName) {
             keyDocId
         );
 
-        // Download encrypted file from storage
-        const fileUrl = storage.getFileDownload(APPWRITE_CONFIG.bucketId, fileId);
-        const response = await fetch(fileUrl);
+        // Download encrypted file from storage using the SDK's built-in method
+        // This ensures proper authentication headers are included
+        const response = await fetch(
+            storage.getFileDownload(APPWRITE_CONFIG.bucketId, fileId),
+            {
+                headers: {
+                    'Authorization': `Bearer ${(await account.get()).$id}`
+                }
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+        }
+
         const encryptedData = await response.arrayBuffer();
 
         // Import the encryption key
