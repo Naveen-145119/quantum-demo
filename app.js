@@ -291,17 +291,12 @@ async function downloadFile(fileId, keyDocId, originalFileName) {
             keyDocId
         );
 
-        // Download encrypted file from storage using the SDK's built-in method
-        // This ensures proper authentication headers are included
-        const response = await fetch(
-            storage.getFileDownload(APPWRITE_CONFIG.bucketId, fileId),
-            {
-                headers: {
-                    'Authorization': `Bearer ${(await account.get()).$id}`
-                }
-            }
-        );
-
+        // Use Appwrite's getFileView instead of getFileDownload (handles CORS properly)
+        // View will return the file content with proper CORS headers
+        const fileUrl = storage.getFileView(APPWRITE_CONFIG.bucketId, fileId);
+        
+        const response = await fetch(fileUrl);
+        
         if (!response.ok) {
             throw new Error(`Download failed: ${response.status} ${response.statusText}`);
         }
