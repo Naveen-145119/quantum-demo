@@ -5,6 +5,7 @@
   "main": "index.html",
   "scripts": {
     "start": "npx http-server -p 8000 -o",
+    "build": "echo 'Static site - no build needed'",
     "deploy": "appwrite deploy"
   },
   "keywords": [
