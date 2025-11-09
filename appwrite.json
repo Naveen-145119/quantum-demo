@@ -3,8 +3,9 @@
   "projectName": "Quantum Secure File Upload",
   "functions": [],
   "deployments": [],
+  "variables": [],
   "deploymentSettings": {
-    "runtime": "static",
-    "entrypoint": "index.html"
-  }
+    "runtime": "node-18.0"
+  },
+  "adapter": "static"
 }
