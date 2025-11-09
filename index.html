@@ -72,8 +72,8 @@
             <div class="upload-section">
                 <div class="file-selector">
                     <label for="fileInput" class="file-label">
-                        <span id="fileName">Select a text file to upload securely</span>
-                        <input type="file" id="fileInput" accept=".txt" onchange="handleFileSelect(event)">
+                        <span id="fileName">📁 Select files or folders to upload securely</span>
+                        <input type="file" id="fileInput" multiple webkitdirectory mozdirectory msdirectory odirectory directory onchange="handleFileSelect(event)">
                     </label>
                 </div>
 

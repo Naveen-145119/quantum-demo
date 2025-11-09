@@ -236,6 +236,13 @@ h3 {
     margin-bottom: 5px;
 }
 
+.file-item-path {
+    font-size: 11px;
+    color: #999;
+    margin-bottom: 3px;
+    word-break: break-all;
+}
+
 .file-item-meta {
     font-size: 12px;
     color: #888;
