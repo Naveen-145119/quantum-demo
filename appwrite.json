@@ -1,0 +1,10 @@
+{
+  "projectId": "quantum-demo",
+  "projectName": "Quantum Secure File Upload",
+  "functions": [],
+  "deployments": [],
+  "deploymentSettings": {
+    "runtime": "static",
+    "entrypoint": "index.html"
+  }
+}
