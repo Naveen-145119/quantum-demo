@@ -9,6 +9,7 @@ A web-based secure file upload system with quantum-inspired encryption, powered 
 - ✅ Secure File Storage with Appwrite
 - ✅ Download & Decrypt Files
 - ✅ Delete Encrypted Files
+- ✅ Zero-knowledge Vault with Passphrase-Derived Master Key
 - ✅ Beautiful Responsive UI
 
 ## 🚀 Quick Start - Deploy to Appwrite
@@ -31,6 +32,8 @@ A web-based secure file upload system with quantum-inspired encryption, powered 
   - `email` (String, 255 characters, required)
   - `mobile` (String, 20 characters, required)
   - `registeredAt` (String, 100 characters, required)
+  - `vaultSalt` (String, 255 characters, optional)
+  - `vaultVerifier` (String, 255 characters, optional)
 
 - **Permissions:**
   - Read: Role: User
@@ -129,28 +132,29 @@ Then open `http://localhost:8000`
 
 ## 📖 How It Works
 
-1. **Registration**: User creates account with username, email, mobile, and password
-2. **Login**: Authenticates with Appwrite using email/password
-3. **File Selection**: User selects a text file (.txt)
-4. **Encryption**: 
-   - Generates a quantum-inspired AES-256-GCM encryption key
-   - Encrypts file in browser (client-side)
-   - Key never leaves the user's control unencrypted
-5. **Upload**: 
-   - Encrypted file uploaded to Appwrite Storage
-   - Encryption key stored in Appwrite Database (linked to user)
-6. **Download**: 
-   - Retrieves encrypted file and key
-   - Decrypts in browser
-   - Downloads original file
+1. **Registration**: User creates account with username, email, mobile, and password.
+2. **Login**: Authenticates with Appwrite using email/password.
+3. **Vault Unlock**: First login prompts the user to create a vault passphrase; future sessions require unlocking with the same passphrase. Only a salted verifier (SHA-256) is stored server-side.
+4. **File Selection**: User selects any files or folders (recursive) for upload.
+5. **Encryption**: 
+  - Generates a fresh AES-256-GCM key per file entirely in the browser.
+  - Encrypts the file data client-side.
+  - Wraps file metadata (original name, size, MIME type, per-file key, relative folder path) with the vault master key.
+6. **Upload**: 
+  - Encrypted file uploaded to Appwrite Storage.
+  - Vault-encrypted metadata stored in Appwrite Database (linked to user).
+7. **Download**: 
+  - Requires an unlocked vault to unwrap metadata and key.
+  - Fetches encrypted file from storage, decrypts in browser, and downloads the original.
 
 ## 🔒 Security Features
 
 - **Client-side Encryption**: Files encrypted in browser before upload
 - **AES-256-GCM**: Industry-standard encryption algorithm
 - **Unique Keys**: Each file gets a unique encryption key
+- **Vault Passphrase**: Master key derived from user passphrase; metadata stays zero-knowledge to the server
 - **Secure Authentication**: Powered by Appwrite's secure auth system
-- **No Plain Text Storage**: Original files never stored unencrypted
+- **No Plain Text Storage**: Original files and metadata never stored unencrypted
 
 ## 🛠️ Technologies Used
 
@@ -165,6 +169,7 @@ Then open `http://localhost:8000`
 - For production use, consider additional security measures
 - The original Python/Tkinter code has been fully converted to web technologies
 - All functionality preserved: registration, login, encrypted upload, file management
+- Vault passphrases cannot be recovered by the server—if a user forgets theirs, the vault data is unrecoverable
 
 ## 🆘 Troubleshooting
 

@@ -4,6 +4,22 @@ let client, account, databases, storage;
 let currentUser = null;
 let selectedFiles = [];
 
+const PBKDF_ITERATIONS = 310000;
+const PBKDF_KEY_LENGTH_BITS = 256;
+const VAULT_SALT_BYTES = 16;
+
+const vaultState = {
+    masterKey: null,
+    salt: null,
+    verifier: null,
+    userDoc: null,
+    mode: null,
+    modalResolve: null,
+    modalReject: null,
+    modalPromise: null,
+    isOpen: false
+};
+
 const MIME_TYPES = {
     pdf: 'application/pdf',
     txt: 'text/plain',
@@ -38,29 +54,42 @@ const MIME_TYPES = {
 
 function parseEncryptionMetadata(value) {
     if (!value) {
-        return { key: null };
+        return { version: 0, key: null };
     }
 
     if (typeof value === 'string') {
         try {
             const parsed = JSON.parse(value);
-            if (parsed && typeof parsed === 'object' && parsed.key) {
-                return {
-                    key: parsed.key,
-                    originalName: parsed.originalName || null,
-                    mimeType: parsed.mimeType || '',
-                    size: typeof parsed.size === 'number' ? parsed.size : null,
-                    path: parsed.path || null,
-                    uploadedAt: parsed.uploadedAt || null
-                };
+
+            if (parsed && typeof parsed === 'object') {
+                if (parsed.version === 2 && parsed.payload && parsed.iv) {
+                    return {
+                        version: 2,
+                        payload: parsed.payload,
+                        iv: parsed.iv,
+                        uploadedAt: parsed.uploadedAt || null
+                    };
+                }
+
+                if (parsed.key) {
+                    return {
+                        version: 1,
+                        key: parsed.key,
+                        originalName: parsed.originalName || null,
+                        mimeType: parsed.mimeType || '',
+                        size: typeof parsed.size === 'number' ? parsed.size : null,
+                        path: parsed.path || null,
+                        uploadedAt: parsed.uploadedAt || null
+                    };
+                }
             }
         } catch (err) {
             // Value is a plain key string (legacy format)
         }
-        return { key: value };
+        return { version: 0, key: value };
     }
 
-    return { key: value };
+    return { version: 0, key: value };
 }
 
 function formatFileSize(bytes) {
@@ -114,6 +143,322 @@ function escapeHtml(value) {
             default: return match;
         }
     });
+}
+
+function toBase64(buffer) {
+    return quantumCrypto.arrayBufferToBase64(buffer instanceof ArrayBuffer ? buffer : buffer.buffer);
+}
+
+function fromBase64(base64) {
+    return new Uint8Array(quantumCrypto.base64ToArrayBuffer(base64));
+}
+
+function resetVaultState() {
+    vaultState.masterKey = null;
+    vaultState.salt = null;
+    vaultState.verifier = null;
+    vaultState.mode = null;
+    vaultState.modalResolve = null;
+    vaultState.modalReject = null;
+    vaultState.modalPromise = null;
+    vaultState.isOpen = false;
+}
+
+async function initializeVaultState() {
+    if (!currentUser) return;
+
+    try {
+        const userDoc = await databases.getDocument(
+            APPWRITE_CONFIG.databaseId,
+            APPWRITE_CONFIG.userDataCollectionId,
+            currentUser.$id
+        );
+        vaultState.userDoc = userDoc;
+        vaultState.salt = userDoc.vaultSalt || null;
+        vaultState.verifier = userDoc.vaultVerifier || null;
+    } catch (error) {
+        console.error('Failed to load user vault profile:', error);
+        showToast('Unable to load user vault configuration.', 'error');
+    }
+}
+
+async function ensureVaultReady() {
+    if (vaultState.masterKey) {
+        return true;
+    }
+
+    if (!vaultState.userDoc) {
+        await initializeVaultState();
+    }
+
+    const unlocked = await openVaultModal();
+    return Boolean(unlocked && vaultState.masterKey);
+}
+
+function openVaultModal() {
+    if (vaultState.isOpen) {
+        return vaultState.modalPromise;
+    }
+
+    const mode = vaultState.salt && vaultState.verifier ? 'unlock' : 'create';
+    vaultState.mode = mode;
+
+    const modal = document.getElementById('vaultModal');
+    const title = document.getElementById('vaultModalTitle');
+    const description = document.getElementById('vaultModalDescription');
+    const confirmGroup = document.getElementById('vaultConfirmGroup');
+    const submitButton = document.getElementById('vaultSubmitButton');
+    const errorEl = document.getElementById('vaultError');
+
+    if (!modal || !title || !description || !submitButton || !errorEl) {
+        console.error('Vault modal elements missing in DOM.');
+        alert('Vault interface is unavailable.');
+        return Promise.resolve(false);
+    }
+
+    errorEl.textContent = '';
+    const passEl = document.getElementById('vaultPassphrase');
+    const confirmEl = document.getElementById('vaultPassphraseConfirm');
+
+    if (passEl) {
+        passEl.value = '';
+        passEl.focus();
+    }
+    if (confirmEl) {
+        confirmEl.value = '';
+    }
+
+    if (mode === 'unlock') {
+        title.textContent = 'Unlock Secure Vault';
+        description.textContent = 'Enter your vault passphrase to access encrypted files.';
+        if (confirmGroup) {
+            confirmGroup.style.display = 'none';
+        }
+        if (confirmEl) {
+            confirmEl.required = false;
+        }
+        submitButton.textContent = 'Unlock';
+    } else {
+        title.textContent = 'Create Vault Passphrase';
+        description.textContent = 'Set a strong passphrase. You must remember it to access your encrypted files.';
+        if (confirmGroup) {
+            confirmGroup.style.display = 'block';
+        }
+        if (confirmEl) {
+            confirmEl.required = true;
+        }
+        submitButton.textContent = 'Create Vault';
+    }
+
+    modal.classList.add('active');
+    vaultState.isOpen = true;
+
+    vaultState.modalPromise = new Promise((resolve) => {
+        vaultState.modalResolve = resolve;
+    });
+
+    return vaultState.modalPromise;
+}
+
+function hideVaultModal() {
+    const modal = document.getElementById('vaultModal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
+    vaultState.isOpen = false;
+    vaultState.modalPromise = null;
+}
+
+function displayVaultError(message) {
+    const errorEl = document.getElementById('vaultError');
+    if (errorEl) {
+        errorEl.textContent = message;
+    }
+}
+
+async function deriveMasterKey(passphrase, saltBase64) {
+    const enc = new TextEncoder();
+    const salt = saltBase64 ? fromBase64(saltBase64) : crypto.getRandomValues(new Uint8Array(VAULT_SALT_BYTES));
+
+    const passphraseKey = await crypto.subtle.importKey(
+        'raw',
+        enc.encode(passphrase),
+        'PBKDF2',
+        false,
+        ['deriveBits']
+    );
+
+    const derivedBits = await crypto.subtle.deriveBits(
+        {
+            name: 'PBKDF2',
+            salt,
+            iterations: PBKDF_ITERATIONS,
+            hash: 'SHA-256'
+        },
+        passphraseKey,
+        PBKDF_KEY_LENGTH_BITS
+    );
+
+    const derivedBytes = new Uint8Array(derivedBits);
+    const masterKey = await crypto.subtle.importKey(
+        'raw',
+        derivedBytes,
+        { name: 'AES-GCM' },
+        false,
+        ['encrypt', 'decrypt']
+    );
+
+    const verifierBytes = await crypto.subtle.digest('SHA-256', derivedBytes);
+    const verifier = toBase64(verifierBytes);
+
+    return {
+        masterKey,
+        saltBase64: toBase64(salt.buffer),
+        verifier
+    };
+}
+
+async function vaultEncryptObject(obj) {
+    if (!vaultState.masterKey) {
+        throw new Error('Vault is locked.');
+    }
+
+    const encoder = new TextEncoder();
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const payload = encoder.encode(JSON.stringify(obj));
+
+    const encrypted = await crypto.subtle.encrypt(
+        {
+            name: 'AES-GCM',
+            iv
+        },
+        vaultState.masterKey,
+        payload
+    );
+
+    return {
+        payload: toBase64(encrypted),
+        iv: toBase64(iv.buffer)
+    };
+}
+
+async function vaultDecryptObject(meta) {
+    if (!vaultState.masterKey) {
+        throw new Error('Vault is locked.');
+    }
+
+    const decoder = new TextDecoder();
+    const iv = fromBase64(meta.iv);
+    const ciphertext = fromBase64(meta.payload);
+
+    const decrypted = await crypto.subtle.decrypt(
+        {
+            name: 'AES-GCM',
+            iv
+        },
+        vaultState.masterKey,
+        ciphertext
+    );
+
+    return JSON.parse(decoder.decode(new Uint8Array(decrypted)));
+}
+
+async function handleVaultSubmit(event) {
+    event.preventDefault();
+
+    const passphraseInput = document.getElementById('vaultPassphrase');
+    const confirmInput = document.getElementById('vaultPassphraseConfirm');
+    const errorEl = document.getElementById('vaultError');
+
+    if (!passphraseInput || !errorEl) {
+        return;
+    }
+
+    const passphrase = passphraseInput.value.trim();
+    const mode = vaultState.mode || 'unlock';
+
+    if (passphrase.length < 8) {
+        displayVaultError('Passphrase must be at least 8 characters.');
+        return;
+    }
+
+    if (mode === 'create') {
+        if (!confirmInput) {
+            displayVaultError('Confirmation input missing.');
+            return;
+        }
+        if (passphrase !== confirmInput.value.trim()) {
+            displayVaultError('Passphrases do not match.');
+            return;
+        }
+    }
+
+    try {
+        if (mode === 'unlock') {
+            if (!vaultState.salt || !vaultState.verifier) {
+                displayVaultError('Vault configuration missing. Please create a new vault.');
+                return;
+            }
+
+            const { masterKey, verifier } = await deriveMasterKey(passphrase, vaultState.salt);
+
+            if (verifier !== vaultState.verifier) {
+                displayVaultError('Invalid passphrase. Please try again.');
+                return;
+            }
+
+            vaultState.masterKey = masterKey;
+            hideVaultModal();
+            if (vaultState.modalResolve) {
+                vaultState.modalResolve(true);
+            }
+            vaultState.modalResolve = null;
+            showToast('Vault unlocked.', 'success');
+        } else {
+            const { masterKey, saltBase64, verifier } = await deriveMasterKey(passphrase, null);
+
+            await databases.updateDocument(
+                APPWRITE_CONFIG.databaseId,
+                APPWRITE_CONFIG.userDataCollectionId,
+                currentUser.$id,
+                {
+                    vaultSalt: saltBase64,
+                    vaultVerifier: verifier
+                }
+            );
+
+            vaultState.masterKey = masterKey;
+            vaultState.salt = saltBase64;
+            vaultState.verifier = verifier;
+            vaultState.userDoc = {
+                ...(vaultState.userDoc || {}),
+                vaultSalt: saltBase64,
+                vaultVerifier: verifier
+            };
+
+            hideVaultModal();
+            if (vaultState.modalResolve) {
+                vaultState.modalResolve(true);
+            }
+            vaultState.modalResolve = null;
+            showToast('Vault created and unlocked.', 'success');
+        }
+    } catch (error) {
+        console.error('Vault handling error:', error);
+        displayVaultError(error.message || 'Unable to process vault request.');
+    }
+}
+
+function cancelVaultModal() {
+    hideVaultModal();
+    if (vaultState.modalResolve) {
+        vaultState.modalResolve(false);
+    }
+    vaultState.modalResolve = null;
+    if (!vaultState.masterKey) {
+        // If user cancels without unlocking, log them out for security.
+        handleLogout();
+    }
 }
 
 // Initialize Appwrite
@@ -252,6 +597,7 @@ async function handleLogout() {
         await account.deleteSession('current');
         currentUser = null;
         selectedFiles = [];
+        resetVaultState();
         showToast('Logged out successfully', 'info');
         showMain();
     } catch (error) {
@@ -303,10 +649,17 @@ async function handleSecureUpload() {
         return;
     }
 
-    showLoading(true);
     const statusEl = document.getElementById('uploadStatus');
     statusEl.className = 'status-message';
     statusEl.style.display = 'none';
+
+    const vaultReady = await ensureVaultReady();
+    if (!vaultReady) {
+        showToast('Vault locked. Upload cancelled.', 'error');
+        return;
+    }
+
+    showLoading(true);
 
     try {
         let uploadCount = 0;
@@ -349,6 +702,14 @@ async function handleSecureUpload() {
                     uploadedAt
                 };
 
+                const encryptedMetadata = await vaultEncryptObject(metadata);
+                const storedMetadata = {
+                    version: 2,
+                    payload: encryptedMetadata.payload,
+                    iv: encryptedMetadata.iv,
+                    uploadedAt
+                };
+
                 // Store metadata and encryption key (as JSON) for this file
                 await databases.createDocument(
                     APPWRITE_CONFIG.databaseId,
@@ -358,7 +719,7 @@ async function handleSecureUpload() {
                         userId: currentUser.$id,
                         fileId,
                         fileName: file.name,
-                        encryptionKey: JSON.stringify(metadata),
+                        encryptionKey: JSON.stringify(storedMetadata),
                         uploadedAt
                     }
                 );
@@ -393,8 +754,8 @@ async function handleSecureUpload() {
 
         // Reset file input
         document.getElementById('fileInput').value = '';
-    document.getElementById('folderInput').value = '';
-    selectedFiles = [];
+        document.getElementById('folderInput').value = '';
+        selectedFiles = [];
         document.getElementById('fileName').textContent = '📁 Select files or folders to upload securely';
         document.getElementById('uploadBtn').disabled = true;
 
@@ -415,6 +776,8 @@ async function handleSecureUpload() {
 async function loadUserFiles() {
     if (!currentUser) return;
 
+    const filesListEl = document.getElementById('filesList');
+
     try {
         const response = await databases.listDocuments(
             APPWRITE_CONFIG.databaseId,
@@ -425,32 +788,83 @@ async function loadUserFiles() {
             ]
         );
 
-        const filesListEl = document.getElementById('filesList');
-        
         if (response.documents.length === 0) {
             filesListEl.innerHTML = '<p style="color: #888; text-align: center;">No files uploaded yet</p>';
             return;
         }
 
-        filesListEl.innerHTML = response.documents.map(doc => {
+        const parsedEntries = response.documents.map(doc => ({
+            doc,
+            metadata: parseEncryptionMetadata(doc.encryptionKey)
+        }));
+
+        const requiresVault = parsedEntries.some(entry => entry.metadata.version === 2);
+
+        if (requiresVault && !vaultState.masterKey) {
+            const unlocked = await ensureVaultReady();
+            if (!unlocked) {
+                filesListEl.innerHTML = '<p style="color: #dc2626; text-align: center;">Unlock your vault to view encrypted files.</p>';
+                return;
+            }
+        }
+
+        const items = [];
+
+        for (const entry of parsedEntries) {
+            const { doc, metadata: parsedMetadata } = entry;
+            let metadata = parsedMetadata;
+            let decryptError = null;
+
+            if (parsedMetadata.version === 2) {
+                try {
+                    metadata = await vaultDecryptObject(parsedMetadata);
+                } catch (error) {
+                    decryptError = 'Unable to decrypt metadata. Try unlocking the vault again.';
+                    console.error('Metadata decrypt error:', error);
+                }
+            } else if (parsedMetadata.version === 0) {
+                metadata = {
+                    key: parsedMetadata.key,
+                    originalName: doc.fileName,
+                    mimeType: '',
+                    size: null,
+                    path: null,
+                    uploadedAt: doc.uploadedAt
+                };
+            }
+
             const date = new Date(doc.uploadedAt).toLocaleString();
-            const metadata = parseEncryptionMetadata(doc.encryptionKey);
-            const originalName = metadata.originalName || doc.fileName;
-            const displayPath = metadata.path && metadata.path !== originalName
+            const originalName = metadata && metadata.originalName ? metadata.originalName : doc.fileName;
+            const displayPath = metadata && metadata.path && metadata.path !== originalName
                 ? metadata.path
                 : null;
-            const sizeLabel = typeof metadata.size === 'number'
+            const sizeLabel = metadata && typeof metadata.size === 'number'
                 ? `(${formatFileSize(metadata.size)})`
                 : '';
-
+            const mimeType = metadata && metadata.mimeType
+                ? metadata.mimeType
+                : inferMimeType(originalName);
             const ext = (originalName.split('.').pop() || '').toLowerCase();
-            const icon = getFileIcon(ext, metadata.mimeType);
+            const icon = getFileIcon(ext, mimeType);
             const safeName = escapeHtml(originalName);
             const safePath = displayPath ? escapeHtml(displayPath) : '';
             const pathHtml = safePath ? `<div class="file-item-path">${safePath}</div>` : '';
             const encodedName = encodeURIComponent(originalName);
 
-            return `
+            if (decryptError || !metadata || !metadata.key) {
+                items.push(`
+                    <div class="file-item">
+                        <div class="file-item-info">
+                            <div class="file-item-name">🔒 ${safeName}</div>
+                            ${pathHtml}
+                            <div class="file-item-meta">${escapeHtml(decryptError || 'Metadata unavailable')}</div>
+                        </div>
+                    </div>
+                `);
+                continue;
+            }
+
+            items.push(`
                 <div class="file-item">
                     <div class="file-item-info">
                         <div class="file-item-name">${icon} ${safeName}</div>
@@ -466,11 +880,16 @@ async function loadUserFiles() {
                         </button>
                     </div>
                 </div>
-            `;
-        }).join('');
+            `);
+        }
+
+        filesListEl.innerHTML = items.join('');
 
     } catch (error) {
         console.error('Error loading files:', error);
+        if (filesListEl) {
+            filesListEl.innerHTML = '<p style="color: #dc2626; text-align: center;">Failed to load files.</p>';
+        }
     }
 }
 
@@ -479,13 +898,40 @@ async function downloadFile(keyDocId) {
     showLoading(true);
 
     try {
-        // Get the encryption key
         const keyDoc = await databases.getDocument(
             APPWRITE_CONFIG.databaseId,
             APPWRITE_CONFIG.encryptionKeysCollectionId,
             keyDocId
         );
-        const metadata = parseEncryptionMetadata(keyDoc.encryptionKey);
+
+        const parsedMetadata = parseEncryptionMetadata(keyDoc.encryptionKey);
+
+        if (parsedMetadata.version === 2 && !vaultState.masterKey) {
+            showLoading(false);
+            const unlocked = await ensureVaultReady();
+            if (!unlocked) {
+                showToast('Vault locked. Download cancelled.', 'error');
+                return;
+            }
+            showLoading(true);
+        }
+
+        let metadata;
+
+        if (parsedMetadata.version === 2) {
+            metadata = await vaultDecryptObject(parsedMetadata);
+        } else if (parsedMetadata.version === 1) {
+            metadata = parsedMetadata;
+        } else {
+            metadata = {
+                key: parsedMetadata.key,
+                originalName: keyDoc.fileName,
+                mimeType: '',
+                path: null,
+                size: null
+            };
+        }
+
         const encryptionKeyString = metadata.key;
         const originalFileName = metadata.originalName || keyDoc.fileName;
         const displayName = metadata.path || originalFileName;
@@ -500,30 +946,21 @@ async function downloadFile(keyDocId) {
             throw new Error('File reference not found.');
         }
 
-        // Use Appwrite's getFileView instead of getFileDownload (handles CORS properly)
-        // View will return the file content with proper CORS headers
         const fileUrl = storage.getFileView(APPWRITE_CONFIG.bucketId, fileId);
-        
         const response = await fetch(fileUrl);
-        
+
         if (!response.ok) {
             throw new Error(`Download failed: ${response.status} ${response.statusText}`);
         }
 
         const encryptedData = await response.arrayBuffer();
-
-        // Import the encryption key
         const key = await quantumCrypto.importKey(encryptionKeyString);
-
-        // Decrypt the file
         const decryptedData = await quantumCrypto.decryptFile(new Uint8Array(encryptedData), key);
 
-        // Create a blob with correct MIME type and download
         const blob = new Blob([decryptedData], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        // Browsers ignore path separators in download names, but we replace them to avoid issues
         a.download = displayName ? displayName.replace(/[\\/]+/g, '_') : originalFileName;
         document.body.appendChild(a);
         a.click();
@@ -605,5 +1042,16 @@ function showToast(message, type = 'info') {
 
 // Initialize app when page loads
 document.addEventListener('DOMContentLoaded', () => {
+    const vaultForm = document.getElementById('vaultForm');
+    const vaultCancelButton = document.getElementById('vaultCancelButton');
+
+    if (vaultForm) {
+        vaultForm.addEventListener('submit', handleVaultSubmit);
+    }
+
+    if (vaultCancelButton) {
+        vaultCancelButton.addEventListener('click', cancelVaultModal);
+    }
+
     initAppwrite();
 });
