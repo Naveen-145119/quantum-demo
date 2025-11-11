@@ -8,6 +8,7 @@ A web-based secure file upload system with quantum-inspired encryption, powered 
 - ✅ Quantum-inspired File Encryption (AES-256-GCM)
 - ✅ Secure File Storage with Appwrite
 - ✅ Download & Decrypt Files
+- ✅ Delete Encrypted Files
 - ✅ Beautiful Responsive UI
 
 ## 🚀 Quick Start - Deploy to Appwrite

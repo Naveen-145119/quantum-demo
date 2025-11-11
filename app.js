@@ -99,6 +99,23 @@ function inferMimeType(fileName, fallback = 'application/octet-stream') {
     return MIME_TYPES[ext.toLowerCase()] || fallback;
 }
 
+function escapeHtml(value) {
+    if (value === null || value === undefined) {
+        return '';
+    }
+    return String(value).replace(/[&<>":']/g, match => {
+        switch (match) {
+            case '&': return '&amp;';
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '"': return '&quot;';
+            case '\'': return '&#39;';
+            case ':': return '&#58;';
+            default: return match;
+        }
+    });
+}
+
 // Initialize Appwrite
 function initAppwrite() {
     try {
@@ -234,7 +251,7 @@ async function handleLogout() {
     try {
         await account.deleteSession('current');
         currentUser = null;
-    selectedFiles = [];
+        selectedFiles = [];
         showToast('Logged out successfully', 'info');
         showMain();
     } catch (error) {
@@ -294,7 +311,7 @@ async function handleSecureUpload() {
     try {
         let uploadCount = 0;
         const errorDetails = [];
-    const files = selectedFiles;
+        const files = selectedFiles;
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
@@ -428,18 +445,24 @@ async function loadUserFiles() {
 
             const ext = (originalName.split('.').pop() || '').toLowerCase();
             const icon = getFileIcon(ext, metadata.mimeType);
-            const pathHtml = displayPath ? `<div class="file-item-path">${displayPath}</div>` : '';
+            const safeName = escapeHtml(originalName);
+            const safePath = displayPath ? escapeHtml(displayPath) : '';
+            const pathHtml = safePath ? `<div class="file-item-path">${safePath}</div>` : '';
+            const encodedName = encodeURIComponent(originalName);
 
             return `
                 <div class="file-item">
                     <div class="file-item-info">
-                        <div class="file-item-name">${icon} ${originalName}</div>
+                        <div class="file-item-name">${icon} ${safeName}</div>
                         ${pathHtml}
                         <div class="file-item-meta">Uploaded: ${date} ${sizeLabel}</div>
                     </div>
                     <div class="file-item-actions">
                         <button class="btn btn-primary btn-small" onclick="downloadFile('${doc.$id}')">
                             Download
+                        </button>
+                        <button class="btn btn-danger btn-small" onclick="deleteFile('${doc.$id}', '${encodedName}')">
+                            Delete
                         </button>
                     </div>
                 </div>
@@ -511,6 +534,50 @@ async function downloadFile(keyDocId) {
     } catch (error) {
         console.error('Download error:', error);
         showToast('Failed to download file: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Delete Encrypted File and Metadata
+async function deleteFile(keyDocId, encodedName = '') {
+    const decodedName = encodedName ? decodeURIComponent(encodedName) : 'this file';
+    const confirmed = window.confirm(`Are you sure you want to permanently delete "${decodedName}"?`);
+    if (!confirmed) {
+        return;
+    }
+
+    showLoading(true);
+
+    try {
+        const keyDoc = await databases.getDocument(
+            APPWRITE_CONFIG.databaseId,
+            APPWRITE_CONFIG.encryptionKeysCollectionId,
+            keyDocId
+        );
+
+        const fileId = keyDoc.fileId;
+
+        if (fileId) {
+            try {
+                await storage.deleteFile(APPWRITE_CONFIG.bucketId, fileId);
+            } catch (storageError) {
+                // If file already gone, log and continue with document deletion
+                console.warn('Storage delete warning:', storageError);
+            }
+        }
+
+        await databases.deleteDocument(
+            APPWRITE_CONFIG.databaseId,
+            APPWRITE_CONFIG.encryptionKeysCollectionId,
+            keyDocId
+        );
+
+        showToast('File deleted successfully.', 'success');
+        loadUserFiles();
+    } catch (error) {
+        console.error('Delete error:', error);
+        showToast('Failed to delete file: ' + (error.message || error), 'error');
     } finally {
         showLoading(false);
     }
