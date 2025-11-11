@@ -4,6 +4,101 @@ let client, account, databases, storage;
 let currentUser = null;
 let selectedFile = null;
 
+const MIME_TYPES = {
+    pdf: 'application/pdf',
+    txt: 'text/plain',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    json: 'application/json',
+    xml: 'application/xml',
+    csv: 'text/csv',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    bmp: 'image/bmp',
+    svg: 'image/svg+xml',
+    webp: 'image/webp',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    avi: 'video/x-msvideo',
+    mkv: 'video/x-matroska',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    flac: 'audio/flac',
+    m4a: 'audio/mp4',
+    zip: 'application/zip',
+    rar: 'application/vnd.rar',
+    '7z': 'application/x-7z-compressed',
+    tar: 'application/x-tar',
+    gz: 'application/gzip'
+};
+
+function parseEncryptionMetadata(value) {
+    if (!value) {
+        return { key: null };
+    }
+
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            if (parsed && typeof parsed === 'object' && parsed.key) {
+                return {
+                    key: parsed.key,
+                    originalName: parsed.originalName || null,
+                    mimeType: parsed.mimeType || '',
+                    size: typeof parsed.size === 'number' ? parsed.size : null,
+                    path: parsed.path || null,
+                    uploadedAt: parsed.uploadedAt || null
+                };
+            }
+        } catch (err) {
+            // Value is a plain key string (legacy format)
+        }
+        return { key: value };
+    }
+
+    return { key: value };
+}
+
+function formatFileSize(bytes) {
+    if (typeof bytes !== 'number' || Number.isNaN(bytes)) {
+        return '';
+    }
+
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let size = bytes;
+    let unitIndex = 0;
+
+    while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex++;
+    }
+
+    const precision = unitIndex === 0 ? 0 : 1;
+    return `${size.toFixed(precision)} ${units[unitIndex]}`;
+}
+
+function getFileIcon(extension, mimeType = '') {
+    const ext = (extension || '').toLowerCase();
+    if (['pdf'].includes(ext)) return '📕';
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return '📦';
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(ext) || mimeType.startsWith('image/')) return '🖼️';
+    if (['mp4', 'mov', 'avi', 'mkv'].includes(ext) || mimeType.startsWith('video/')) return '🎥';
+    if (['mp3', 'wav', 'aac', 'flac', 'm4a'].includes(ext) || mimeType.startsWith('audio/')) return '🎵';
+    if (['txt', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'json', 'xml'].includes(ext)) return '📝';
+    return '📄';
+}
+
+function inferMimeType(fileName, fallback = 'application/octet-stream') {
+    if (!fileName) return fallback;
+    const ext = fileName.split('.').pop();
+    if (!ext) return fallback;
+    return MIME_TYPES[ext.toLowerCase()] || fallback;
+}
+
 // Initialize Appwrite
 function initAppwrite() {
     try {
@@ -174,28 +269,28 @@ async function handleSecureUpload() {
 
     try {
         let uploadCount = 0;
-        let errorCount = 0;
+        const errorDetails = [];
+        const files = selectedFile;
 
-        // Generate ONE encryption key for all files
-        const encryptionKey = await quantumCrypto.generateQuantumKey();
-        const keyString = await quantumCrypto.exportKey(encryptionKey);
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
 
-        // Upload each file
-        for (let i = 0; i < selectedFile.length; i++) {
-            const file = selectedFile[i];
-            
             try {
-                // Encrypt the file
+                // Generate a unique key per file for stronger security
+                const encryptionKey = await quantumCrypto.generateQuantumKey();
+                const keyString = await quantumCrypto.exportKey(encryptionKey);
+
+                // Encrypt file contents in the browser
                 const encryptedData = await quantumCrypto.encryptFile(file, encryptionKey);
-                
-                // Create a new File object with encrypted data
+
+                // Create encrypted file blob for upload
                 const encryptedFile = new File(
-                    [encryptedData], 
+                    [encryptedData],
                     `${file.name}.enc`,
                     { type: 'application/octet-stream' }
                 );
 
-                // Upload to Appwrite Storage
+                // Upload encrypted file to Appwrite Storage
                 const fileId = Appwrite.ID.unique();
                 await storage.createFile(
                     APPWRITE_CONFIG.bucketId,
@@ -203,38 +298,57 @@ async function handleSecureUpload() {
                     encryptedFile
                 );
 
-                // Store encryption key in database (linked to user and file)
+                const uploadedAt = new Date().toISOString();
+                const metadata = {
+                    key: keyString,
+                    originalName: file.name,
+                    mimeType: file.type || '',
+                    size: file.size,
+                    path: file.webkitRelativePath || null,
+                    uploadedAt
+                };
+
+                // Store metadata and encryption key (as JSON) for this file
                 await databases.createDocument(
                     APPWRITE_CONFIG.databaseId,
                     APPWRITE_CONFIG.encryptionKeysCollectionId,
                     Appwrite.ID.unique(),
                     {
                         userId: currentUser.$id,
-                        fileId: fileId,
+                        fileId,
                         fileName: file.name,
-                        filePath: file.webkitRelativePath || file.name, // Preserve folder structure
-                        fileSize: file.size,
-                        fileType: file.type,
-                        encryptionKey: keyString,
-                        uploadedAt: new Date().toISOString()
+                        encryptionKey: JSON.stringify(metadata),
+                        uploadedAt
                     }
                 );
 
                 uploadCount++;
             } catch (fileError) {
                 console.error(`Failed to upload ${file.name}:`, fileError);
-                errorCount++;
+                errorDetails.push(`${file.name}: ${fileError.message || fileError}`);
             }
         }
 
-        // Success!
-        const message = errorCount === 0 
-            ? `✅ ${uploadCount} file(s) encrypted and uploaded successfully!`
-            : `⚠️ ${uploadCount} file(s) uploaded, ${errorCount} failed.`;
-        
-        statusEl.textContent = message;
-        statusEl.classList.add('success', 'show');
-        showToast(`Uploaded ${uploadCount} file(s)!`, 'success');
+        if (uploadCount > 0) {
+            statusEl.textContent = `✅ ${uploadCount} file(s) encrypted and uploaded successfully!`;
+            statusEl.classList.add('success', 'show');
+            showToast(`Uploaded ${uploadCount} file(s)!`, 'success');
+        }
+
+        if (errorDetails.length > 0) {
+            const errorMessage = `⚠️ Failed uploads: ${errorDetails.join(', ')}`;
+            statusEl.textContent = statusEl.textContent
+                ? `${statusEl.textContent}\n${errorMessage}`
+                : errorMessage;
+            statusEl.classList.remove('success');
+            statusEl.classList.add('error', 'show');
+            showToast(
+                uploadCount === 0
+                    ? 'Upload failed. Please review the errors.'
+                    : 'Some files failed to upload. Check details.',
+                'error'
+            );
+        }
 
         // Reset file input
         document.getElementById('fileInput').value = '';
@@ -278,28 +392,28 @@ async function loadUserFiles() {
 
         filesListEl.innerHTML = response.documents.map(doc => {
             const date = new Date(doc.uploadedAt).toLocaleString();
-            // Get file extension to show appropriate icon
-            const ext = doc.fileName.split('.').pop().toLowerCase();
-            let icon = '📄';
-            if (['pdf'].includes(ext)) icon = '📕';
-            if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) icon = '📦';
-            if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'].includes(ext)) icon = '🖼️';
-            if (['mp4', 'mov', 'avi', 'mkv', 'flv'].includes(ext)) icon = '🎥';
-            if (['mp3', 'wav', 'aac', 'flac', 'm4a'].includes(ext)) icon = '🎵';
-            if (['txt', 'doc', 'docx'].includes(ext)) icon = '📝';
-            
-            const fileSize = doc.fileSize ? `(${(doc.fileSize / 1024).toFixed(2)} KB)` : '';
-            const filePath = doc.filePath ? `<div class="file-item-path">${doc.filePath}</div>` : '';
-            
+            const metadata = parseEncryptionMetadata(doc.encryptionKey);
+            const originalName = metadata.originalName || doc.fileName;
+            const displayPath = metadata.path && metadata.path !== originalName
+                ? metadata.path
+                : null;
+            const sizeLabel = typeof metadata.size === 'number'
+                ? `(${formatFileSize(metadata.size)})`
+                : '';
+
+            const ext = (originalName.split('.').pop() || '').toLowerCase();
+            const icon = getFileIcon(ext, metadata.mimeType);
+            const pathHtml = displayPath ? `<div class="file-item-path">${displayPath}</div>` : '';
+
             return `
                 <div class="file-item">
                     <div class="file-item-info">
-                        <div class="file-item-name">${icon} ${doc.fileName}</div>
-                        ${filePath}
-                        <div class="file-item-meta">Uploaded: ${date} ${fileSize}</div>
+                        <div class="file-item-name">${icon} ${originalName}</div>
+                        ${pathHtml}
+                        <div class="file-item-meta">Uploaded: ${date} ${sizeLabel}</div>
                     </div>
                     <div class="file-item-actions">
-                        <button class="btn btn-primary btn-small" onclick="downloadFile('${doc.fileId}', '${doc.$id}', '${doc.fileName}')">
+                        <button class="btn btn-primary btn-small" onclick="downloadFile('${doc.$id}')">
                             Download
                         </button>
                     </div>
@@ -313,7 +427,7 @@ async function loadUserFiles() {
 }
 
 // Download and Decrypt File
-async function downloadFile(fileId, keyDocId, originalFileName) {
+async function downloadFile(keyDocId) {
     showLoading(true);
 
     try {
@@ -323,6 +437,20 @@ async function downloadFile(fileId, keyDocId, originalFileName) {
             APPWRITE_CONFIG.encryptionKeysCollectionId,
             keyDocId
         );
+        const metadata = parseEncryptionMetadata(keyDoc.encryptionKey);
+        const encryptionKeyString = metadata.key;
+        const originalFileName = metadata.originalName || keyDoc.fileName;
+        const displayName = metadata.path || originalFileName;
+        const mimeType = metadata.mimeType || inferMimeType(originalFileName);
+        const fileId = keyDoc.fileId;
+
+        if (!encryptionKeyString) {
+            throw new Error('Missing encryption key metadata.');
+        }
+
+        if (!fileId) {
+            throw new Error('File reference not found.');
+        }
 
         // Use Appwrite's getFileView instead of getFileDownload (handles CORS properly)
         // View will return the file content with proper CORS headers
@@ -337,42 +465,18 @@ async function downloadFile(fileId, keyDocId, originalFileName) {
         const encryptedData = await response.arrayBuffer();
 
         // Import the encryption key
-        const key = await quantumCrypto.importKey(keyDoc.encryptionKey);
+        const key = await quantumCrypto.importKey(encryptionKeyString);
 
         // Decrypt the file
         const decryptedData = await quantumCrypto.decryptFile(new Uint8Array(encryptedData), key);
-
-        // Determine correct MIME type based on file extension
-        const ext = originalFileName.split('.').pop().toLowerCase();
-        let mimeType = 'application/octet-stream'; // Default
-        
-        const mimeTypes = {
-            'pdf': 'application/pdf',
-            'txt': 'text/plain',
-            'doc': 'application/msword',
-            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'json': 'application/json',
-            'xml': 'application/xml',
-            'csv': 'text/csv',
-            'jpg': 'image/jpeg',
-            'jpeg': 'image/jpeg',
-            'png': 'image/png',
-            'gif': 'image/gif',
-            'svg': 'image/svg+xml',
-            'mp4': 'video/mp4',
-            'mp3': 'audio/mpeg',
-            'zip': 'application/zip'
-        };
-        
-        mimeType = mimeTypes[ext] || mimeType;
 
         // Create a blob with correct MIME type and download
         const blob = new Blob([decryptedData], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = originalFileName;
+        // Browsers ignore path separators in download names, but we replace them to avoid issues
+        a.download = displayName ? displayName.replace(/[\\/]+/g, '_') : originalFileName;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
