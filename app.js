@@ -2,7 +2,7 @@
 
 let client, account, databases, storage;
 let currentUser = null;
-let selectedFile = null;
+let selectedFiles = [];
 
 const MIME_TYPES = {
     pdf: 'application/pdf',
@@ -234,7 +234,7 @@ async function handleLogout() {
     try {
         await account.deleteSession('current');
         currentUser = null;
-        selectedFile = null;
+    selectedFiles = [];
         showToast('Logged out successfully', 'info');
         showMain();
     } catch (error) {
@@ -243,21 +243,45 @@ async function handleLogout() {
     }
 }
 
-// File Selection Handler
+function openFilePicker() {
+    document.getElementById('fileInput').click();
+}
+
+function openFolderPicker() {
+    document.getElementById('folderInput').click();
+}
+
 function handleFileSelect(event) {
     const files = event.target.files;
-    if (files && files.length > 0) {
-        selectedFile = files;
-        const fileCount = files.length;
-        const fileName = fileCount === 1 ? files[0].name : `${fileCount} files selected`;
-        document.getElementById('fileName').textContent = `✅ ${fileName}`;
-        document.getElementById('uploadBtn').disabled = false;
+    if (!files || files.length === 0) {
+        return;
     }
+
+    selectedFiles = Array.from(files);
+    const fileCount = selectedFiles.length;
+
+    let displayText;
+    if (fileCount === 1) {
+        const file = selectedFiles[0];
+        const path = file.webkitRelativePath || file.name;
+        displayText = `✅ ${path}`;
+    } else {
+        const samplePath = selectedFiles[0].webkitRelativePath;
+        if (samplePath) {
+            const topFolder = samplePath.split('/')[0];
+            displayText = `✅ ${fileCount} items from folder "${topFolder}"`;
+        } else {
+            displayText = `✅ ${fileCount} files selected`;
+        }
+    }
+
+    document.getElementById('fileName').textContent = displayText;
+    document.getElementById('uploadBtn').disabled = false;
 }
 
 // Secure Upload Handler
 async function handleSecureUpload() {
-    if (!selectedFile || selectedFile.length === 0) {
+    if (!selectedFiles || selectedFiles.length === 0) {
         showToast('Please select files first', 'error');
         return;
     }
@@ -270,7 +294,7 @@ async function handleSecureUpload() {
     try {
         let uploadCount = 0;
         const errorDetails = [];
-        const files = selectedFile;
+    const files = selectedFiles;
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
@@ -352,7 +376,8 @@ async function handleSecureUpload() {
 
         // Reset file input
         document.getElementById('fileInput').value = '';
-        selectedFile = null;
+    document.getElementById('folderInput').value = '';
+    selectedFiles = [];
         document.getElementById('fileName').textContent = '📁 Select files or folders to upload securely';
         document.getElementById('uploadBtn').disabled = true;
 
