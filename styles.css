@@ -151,19 +151,30 @@ h3 {
     margin: 20px 0;
 }
 
-.file-selector {
+.file-selector-group {
+    display: flex;
+    gap: 15px;
     margin-bottom: 20px;
+}
+
+.file-selector {
+    flex: 1;
+    margin-bottom: 0;
 }
 
 .file-label {
     display: block;
-    padding: 40px 20px;
+    padding: 30px 10px;
     border: 3px dashed #667eea;
     border-radius: 12px;
     text-align: center;
     cursor: pointer;
     transition: all 0.3s ease;
     background: #f8f9ff;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .file-label:hover {
@@ -173,6 +184,14 @@ h3 {
 
 .file-label input[type="file"] {
     display: none;
+}
+
+.selected-file-name {
+    text-align: center;
+    color: #667eea;
+    font-weight: 500;
+    margin-bottom: 20px;
+    min-height: 24px;
 }
 
 #fileName {

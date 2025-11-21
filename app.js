@@ -155,7 +155,7 @@ function handleFileSelect(event) {
         selectedFile = files;
         const fileCount = files.length;
         const fileName = fileCount === 1 ? files[0].name : `${fileCount} files selected`;
-        document.getElementById('fileName').textContent = `✅ ${fileName}`;
+        document.getElementById('selectedFileName').textContent = `✅ ${fileName}`;
         document.getElementById('uploadBtn').disabled = false;
     }
 }
@@ -238,8 +238,9 @@ async function handleSecureUpload() {
 
         // Reset file input
         document.getElementById('fileInput').value = '';
+        document.getElementById('folderInput').value = '';
         selectedFile = null;
-        document.getElementById('fileName').textContent = '📁 Select files or folders to upload securely';
+        document.getElementById('selectedFileName').textContent = '';
         document.getElementById('uploadBtn').disabled = true;
 
         // Reload file list

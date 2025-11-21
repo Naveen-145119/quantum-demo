@@ -70,12 +70,21 @@
             <p class="welcome-text">Welcome, <span id="currentUser"></span>!</p>
             
             <div class="upload-section">
-                <div class="file-selector">
-                    <label for="fileInput" class="file-label">
-                        <span id="fileName">📁 Select files or folders to upload securely</span>
-                        <input type="file" id="fileInput" multiple webkitdirectory mozdirectory msdirectory odirectory directory onchange="handleFileSelect(event)">
-                    </label>
+                <div class="file-selector-group">
+                    <div class="file-selector">
+                        <label for="fileInput" class="file-label">
+                            <span>📄 Select Files</span>
+                            <input type="file" id="fileInput" multiple onchange="handleFileSelect(event)">
+                        </label>
+                    </div>
+                    <div class="file-selector">
+                        <label for="folderInput" class="file-label">
+                            <span>📁 Select Folder</span>
+                            <input type="file" id="folderInput" multiple webkitdirectory mozdirectory msdirectory odirectory directory onchange="handleFileSelect(event)">
+                        </label>
+                    </div>
                 </div>
+                <div id="selectedFileName" class="selected-file-name"></div>
 
                 <div class="button-group">
                     <button class="btn btn-primary" onclick="handleSecureUpload()" id="uploadBtn" disabled>
