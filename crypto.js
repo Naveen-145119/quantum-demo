@@ -122,6 +122,14 @@ class QuantumCrypto {
         }
         return bytes.buffer;
     }
+
+    // Hash a passphrase using SHA-256
+    async hashPassphrase(passphrase) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(passphrase);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        return this.arrayBufferToBase64(hashBuffer);
+    }
 }
 
 // Create global instance

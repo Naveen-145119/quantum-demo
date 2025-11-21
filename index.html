@@ -38,6 +38,10 @@
                     <label for="regMobile">Mobile</label>
                     <input type="tel" id="regMobile" required pattern="[0-9]{10,}">
                 </div>
+                <div class="form-group">
+                    <label for="regVaultPass">Vault Passphrase</label>
+                    <input type="password" id="regVaultPass" required minlength="4" placeholder="Code to access your files">
+                </div>
                 <div class="button-group">
                     <button type="submit" class="btn btn-primary">Register</button>
                     <button type="button" class="btn btn-secondary" onclick="showMain()">Back</button>
@@ -60,6 +64,22 @@
                 <div class="button-group">
                     <button type="submit" class="btn btn-primary">Login</button>
                     <button type="button" class="btn btn-secondary" onclick="showMain()">Back</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Vault Unlock Screen -->
+        <div id="vaultAuthScreen" class="screen">
+            <h2>🔐 Unlock Vault</h2>
+            <p class="subtitle">Enter your passphrase to access files</p>
+            <form id="vaultAuthForm" onsubmit="handleVaultUnlock(event)">
+                <div class="form-group">
+                    <label for="vaultPass">Vault Passphrase</label>
+                    <input type="password" id="vaultPass" required>
+                </div>
+                <div class="button-group">
+                    <button type="submit" class="btn btn-primary">Unlock</button>
+                    <button type="button" class="btn btn-secondary" onclick="handleLogout()">Logout</button>
                 </div>
             </form>
         </div>
