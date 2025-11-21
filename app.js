@@ -3,6 +3,7 @@
 let client, account, databases, storage;
 let currentUser = null;
 let selectedFile = null;
+let isFolderUpload = false;
 
 // Initialize Appwrite
 function initAppwrite() {
@@ -157,8 +158,11 @@ function handleFileSelect(event) {
     const files = event.target.files;
     if (files && files.length > 0) {
         selectedFile = files;
+        isFolderUpload = event.target.id === 'folderInput';
         const fileCount = files.length;
-        const fileName = fileCount === 1 ? files[0].name : `${fileCount} files selected`;
+        const fileName = isFolderUpload 
+            ? `📁 Folder selected (${fileCount} files)` 
+            : (fileCount === 1 ? files[0].name : `${fileCount} files selected`);
         document.getElementById('selectedFileName').textContent = `✅ ${fileName}`;
         document.getElementById('uploadBtn').disabled = false;
     }
@@ -197,18 +201,35 @@ async function handleSecureUpload() {
         // Convert FileList to Array to avoid issues if the list changes
         const filesToUpload = Array.from(selectedFile);
 
-        // Upload each file
-        for (let i = 0; i < filesToUpload.length; i++) {
-            const file = filesToUpload[i];
-            
+        if (isFolderUpload) {
+            // Handle Folder Upload (Zip -> Encrypt -> Upload)
             try {
-                // Encrypt the file
-                const encryptedData = await quantumCrypto.encryptFile(file, encryptionKey);
+                const zip = new JSZip();
+                let folderName = 'archive';
                 
-                // Create a new File object with encrypted data
+                // Add files to zip
+                filesToUpload.forEach(file => {
+                    // Use webkitRelativePath to preserve folder structure
+                    const path = file.webkitRelativePath || file.name;
+                    zip.file(path, file);
+                    
+                    // Try to extract root folder name
+                    if (folderName === 'archive' && file.webkitRelativePath) {
+                        const parts = file.webkitRelativePath.split('/');
+                        if (parts.length > 0) folderName = parts[0];
+                    }
+                });
+
+                // Generate Zip Blob
+                const zipBlob = await zip.generateAsync({type: "blob"});
+                const zipFile = new File([zipBlob], `${folderName}.zip`, { type: 'application/zip' });
+
+                // Encrypt the Zip file
+                const encryptedData = await quantumCrypto.encryptFile(zipFile, encryptionKey);
+                
                 const encryptedFile = new File(
                     [encryptedData], 
-                    `${file.name}.enc`,
+                    `${zipFile.name}.enc`,
                     { type: 'application/octet-stream' }
                 );
 
@@ -220,9 +241,7 @@ async function handleSecureUpload() {
                     encryptedFile
                 );
 
-                // Store encryption key in database (linked to user and file)
-                // Note: filePath is not a standard attribute in the collection, so we'll omit it if it's not needed
-                // or ensure the collection has this attribute. For now, let's remove it to fix the error.
+                // Store metadata
                 await databases.createDocument(
                     APPWRITE_CONFIG.databaseId,
                     APPWRITE_CONFIG.encryptionKeysCollectionId,
@@ -230,19 +249,66 @@ async function handleSecureUpload() {
                     {
                         userId: currentUser.$id,
                         fileId: fileId,
-                        fileName: file.name,
-                        // filePath: file.webkitRelativePath || file.name, // Removed to fix "Unknown attribute: filePath" error
-                        // fileSize: file.size, // Removed to fix "Unknown attribute: fileSize" error
-                        // fileType: file.type, // Removed to prevent potential "Unknown attribute: fileType" error
+                        fileName: zipFile.name,
                         encryptionKey: keyString,
                         uploadedAt: new Date().toISOString()
                     }
                 );
 
-                uploadCount++;
-            } catch (fileError) {
-                console.error(`Failed to upload ${file.name}:`, fileError);
-                errorCount++;
+                uploadCount = 1; // We uploaded 1 zip file representing the folder
+            } catch (error) {
+                console.error('Folder upload failed:', error);
+                errorCount = 1;
+                throw error; // Re-throw to be caught by outer catch
+            }
+        } else {
+            // Handle Individual Files Upload
+            for (let i = 0; i < filesToUpload.length; i++) {
+                const file = filesToUpload[i];
+                
+                try {
+                    // Encrypt the file
+                    const encryptedData = await quantumCrypto.encryptFile(file, encryptionKey);
+                    
+                    // Create a new File object with encrypted data
+                    const encryptedFile = new File(
+                        [encryptedData], 
+                        `${file.name}.enc`,
+                        { type: 'application/octet-stream' }
+                    );
+
+                    // Upload to Appwrite Storage
+                    const fileId = Appwrite.ID.unique();
+                    await storage.createFile(
+                        APPWRITE_CONFIG.bucketId,
+                        fileId,
+                        encryptedFile
+                    );
+
+                    // Store encryption key in database (linked to user and file)
+                    // Note: filePath is not a standard attribute in the collection, so we'll omit it if it's not needed
+                    // or ensure the collection has this attribute. For now, let's remove it to fix the error.
+                    await databases.createDocument(
+                        APPWRITE_CONFIG.databaseId,
+                        APPWRITE_CONFIG.encryptionKeysCollectionId,
+                        Appwrite.ID.unique(),
+                        {
+                            userId: currentUser.$id,
+                            fileId: fileId,
+                            fileName: file.name,
+                            // filePath: file.webkitRelativePath || file.name, // Removed to fix "Unknown attribute: filePath" error
+                            // fileSize: file.size, // Removed to fix "Unknown attribute: fileSize" error
+                            // fileType: file.type, // Removed to prevent potential "Unknown attribute: fileType" error
+                            encryptionKey: keyString,
+                            uploadedAt: new Date().toISOString()
+                        }
+                    );
+
+                    uploadCount++;
+                } catch (fileError) {
+                    console.error(`Failed to upload ${file.name}:`, fileError);
+                    errorCount++;
+                }
             }
         }
 
