@@ -34,10 +34,7 @@ async function checkSession() {
         const session = await account.get();
         if (session) {
             currentUser = session;
-            // Instead of showing upload directly, check if vault is unlocked
-            // For session persistence, we might want to check a local flag or just ask every time
-            // For security, let's ask every time the page reloads
-            showVaultAuth();
+            showDashboard();
         }
     } catch (error) {
         // No active session, stay on main menu
@@ -63,6 +60,18 @@ function showLogin() {
     document.getElementById('loginForm').reset();
 }
 
+function showDashboard() {
+    hideAllScreens();
+    document.getElementById('dashboardScreen').classList.add('active');
+    document.getElementById('dashboardUser').textContent = currentUser.name || currentUser.email;
+}
+
+function showCreateVault() {
+    hideAllScreens();
+    document.getElementById('createVaultScreen').classList.add('active');
+    document.getElementById('createVaultForm').reset();
+}
+
 function showVaultAuth() {
     hideAllScreens();
     document.getElementById('vaultAuthScreen').classList.add('active');
@@ -72,7 +81,7 @@ function showVaultAuth() {
 function showUpload() {
     hideAllScreens();
     document.getElementById('uploadScreen').classList.add('active');
-    document.getElementById('currentUser').textContent = currentUser.name || currentUser.email;
+    // document.getElementById('currentUser').textContent = currentUser.name || currentUser.email; // Removed as it's now in dashboard
 }
 
 function hideAllScreens() {
@@ -89,7 +98,6 @@ async function handleRegister(event) {
     const password = document.getElementById('regPassword').value;
     const email = document.getElementById('regEmail').value;
     const mobile = document.getElementById('regMobile').value;
-    const vaultPass = document.getElementById('regVaultPass').value;
 
     showLoading(true);
 
@@ -97,15 +105,6 @@ async function handleRegister(event) {
         // Create account in Appwrite
         const userId = Appwrite.ID.unique();
         await account.create(userId, email, password, username);
-
-        // Login immediately to set preferences
-        await account.createEmailPasswordSession(email, password);
-
-        // Hash the vault passphrase
-        const vaultHash = await quantumCrypto.hashPassphrase(vaultPass);
-
-        // Store vault hash in user preferences
-        await account.updatePrefs({ vaultHash: vaultHash });
 
         // Store additional user data in database
         await databases.createDocument(
@@ -121,8 +120,6 @@ async function handleRegister(event) {
         );
 
         showToast('Registration successful! Please login.', 'success');
-        // Logout to force fresh login
-        await account.deleteSession('current');
         showLogin();
     } catch (error) {
         console.error('Registration error:', error);
@@ -149,20 +146,53 @@ async function handleLogin(event) {
         currentUser = await account.get();
         
         showToast(`Welcome back, ${currentUser.name}!`, 'success');
-        
-        // Check if user has a vault passphrase set
-        if (currentUser.prefs && currentUser.prefs.vaultHash) {
-            showVaultAuth();
-        } else {
-            // Legacy user or error - for now just let them in or ask to set one?
-            // Let's just show upload for now to avoid locking out old users
-            showToast('No vault passphrase set. Please contact support.', 'warning');
-            showUpload();
-            loadUserFiles();
-        }
+        showDashboard();
     } catch (error) {
         console.error('Login error:', error);
         showToast('Invalid credentials. Please try again.', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Dashboard Actions
+function handleOpenVault() {
+    if (currentUser.prefs && currentUser.prefs.vaultHash) {
+        showVaultAuth();
+    } else {
+        showCreateVault();
+    }
+}
+
+// Create Vault Handler
+async function handleCreateVault(event) {
+    event.preventDefault();
+    const pass = document.getElementById('newVaultPass').value;
+    const confirmPass = document.getElementById('confirmVaultPass').value;
+
+    if (pass !== confirmPass) {
+        showToast('Passphrases do not match', 'error');
+        return;
+    }
+
+    showLoading(true);
+
+    try {
+        // Hash the vault passphrase
+        const vaultHash = await quantumCrypto.hashPassphrase(pass);
+
+        // Store vault hash in user preferences
+        await account.updatePrefs({ vaultHash: vaultHash });
+        
+        // Update local user object
+        currentUser = await account.get();
+
+        showToast('Vault created successfully!', 'success');
+        showUpload();
+        loadUserFiles();
+    } catch (error) {
+        console.error('Create vault error:', error);
+        showToast('Failed to create vault', 'error');
     } finally {
         showLoading(false);
     }

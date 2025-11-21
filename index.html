@@ -38,10 +38,6 @@
                     <label for="regMobile">Mobile</label>
                     <input type="tel" id="regMobile" required pattern="[0-9]{10,}">
                 </div>
-                <div class="form-group">
-                    <label for="regVaultPass">Vault Passphrase</label>
-                    <input type="password" id="regVaultPass" required minlength="4" placeholder="Code to access your files">
-                </div>
                 <div class="button-group">
                     <button type="submit" class="btn btn-primary">Register</button>
                     <button type="button" class="btn btn-secondary" onclick="showMain()">Back</button>
@@ -68,6 +64,46 @@
             </form>
         </div>
 
+        <!-- Dashboard Screen -->
+        <div id="dashboardScreen" class="screen">
+            <h2>Welcome, <span id="dashboardUser"></span>!</h2>
+            <p class="subtitle">Secure File Storage System</p>
+            
+            <div class="dashboard-actions">
+                <div class="action-card">
+                    <div class="icon">🔐</div>
+                    <h3>Secure Vault</h3>
+                    <p>Access your encrypted files</p>
+                    <button class="btn btn-primary" onclick="handleOpenVault()">Open Vault</button>
+                </div>
+            </div>
+            
+            <div class="button-group" style="margin-top: 40px;">
+                <button class="btn btn-secondary" onclick="handleLogout()">Logout</button>
+            </div>
+        </div>
+
+        <!-- Create Vault Screen -->
+        <div id="createVaultScreen" class="screen">
+            <h2>🆕 Setup Vault</h2>
+            <p class="subtitle">Create a secure passphrase for your vault</p>
+            <p class="info-text">This passphrase will be required every time you access your files. Don't forget it!</p>
+            <form id="createVaultForm" onsubmit="handleCreateVault(event)">
+                <div class="form-group">
+                    <label for="newVaultPass">New Passphrase</label>
+                    <input type="password" id="newVaultPass" required minlength="4">
+                </div>
+                <div class="form-group">
+                    <label for="confirmVaultPass">Confirm Passphrase</label>
+                    <input type="password" id="confirmVaultPass" required minlength="4">
+                </div>
+                <div class="button-group">
+                    <button type="submit" class="btn btn-primary">Create Vault</button>
+                    <button type="button" class="btn btn-secondary" onclick="showDashboard()">Cancel</button>
+                </div>
+            </form>
+        </div>
+
         <!-- Vault Unlock Screen -->
         <div id="vaultAuthScreen" class="screen">
             <h2>🔐 Unlock Vault</h2>
@@ -79,15 +115,18 @@
                 </div>
                 <div class="button-group">
                     <button type="submit" class="btn btn-primary">Unlock</button>
-                    <button type="button" class="btn btn-secondary" onclick="handleLogout()">Logout</button>
+                    <button type="button" class="btn btn-secondary" onclick="showDashboard()">Back</button>
                 </div>
             </form>
         </div>
 
         <!-- Upload Screen -->
         <div id="uploadScreen" class="screen">
-            <h2>Secure File Upload</h2>
-            <p class="welcome-text">Welcome, <span id="currentUser"></span>!</p>
+            <div class="header-row">
+                <h2>Secure File Vault</h2>
+                <button class="btn btn-secondary btn-small" onclick="showDashboard()">Close Vault</button>
+            </div>
+            <p class="welcome-text">Vault Unlocked <span id="currentUser" style="display:none"></span></p>
             
             <div class="upload-section">
                 <div class="file-selector-group">
