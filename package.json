@@ -5,7 +5,7 @@
   "main": "index.html",
   "scripts": {
     "start": "npx http-server -p 8000 -o",
-    "build": "rm -rf dist && mkdir -p dist/angular && cp index.html styles.css app.js crypto.js appwrite-config.js appwrite-env.js.example README.md SETUP.md package.json appwrite.json .gitignore dist/angular/ || true",
+    "build": "rm -rf dist && mkdir -p dist/angular && cp index.html styles.css appwrite-env.js.example README.md SETUP.md package.json appwrite.json .gitignore dist/angular/ && cp -r js dist/angular/ || true",
     "deploy": "appwrite deploy"
   },
   "keywords": [
