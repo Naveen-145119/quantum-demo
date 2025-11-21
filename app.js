@@ -232,8 +232,8 @@ async function handleSecureUpload() {
                         fileId: fileId,
                         fileName: file.name,
                         // filePath: file.webkitRelativePath || file.name, // Removed to fix "Unknown attribute: filePath" error
-                        fileSize: file.size,
-                        fileType: file.type,
+                        // fileSize: file.size, // Removed to fix "Unknown attribute: fileSize" error
+                        // fileType: file.type, // Removed to prevent potential "Unknown attribute: fileType" error
                         encryptionKey: keyString,
                         uploadedAt: new Date().toISOString()
                     }
