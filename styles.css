@@ -70,6 +70,27 @@ h3 {
     font-size: 14px;
 }
 
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #eee;
+}
+
+.header h2 {
+    margin-bottom: 0;
+    text-align: left;
+    font-size: 20px;
+}
+
+.header .btn {
+    flex: 0 0 auto;
+    padding: 8px 20px;
+    font-size: 14px;
+}
+
 .welcome-text {
     text-align: center;
     color: #667eea;
@@ -372,6 +393,8 @@ h3 {
     display: flex;
     justify-content: center;
     margin-top: 40px;
+    gap: 20px;
+    flex-wrap: wrap;
 }
 
 .action-card {
@@ -383,6 +406,10 @@ h3 {
     width: 100%;
     max-width: 300px;
     transition: transform 0.3s ease;
+    border: 1px solid #f0f0f0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .action-card:hover {
