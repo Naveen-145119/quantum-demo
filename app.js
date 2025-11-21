@@ -221,6 +221,8 @@ async function handleSecureUpload() {
                 );
 
                 // Store encryption key in database (linked to user and file)
+                // Note: filePath is not a standard attribute in the collection, so we'll omit it if it's not needed
+                // or ensure the collection has this attribute. For now, let's remove it to fix the error.
                 await databases.createDocument(
                     APPWRITE_CONFIG.databaseId,
                     APPWRITE_CONFIG.encryptionKeysCollectionId,
@@ -229,7 +231,7 @@ async function handleSecureUpload() {
                         userId: currentUser.$id,
                         fileId: fileId,
                         fileName: file.name,
-                        filePath: file.webkitRelativePath || file.name, // Preserve folder structure
+                        // filePath: file.webkitRelativePath || file.name, // Removed to fix "Unknown attribute: filePath" error
                         fileSize: file.size,
                         fileType: file.type,
                         encryptionKey: keyString,
