@@ -5,6 +5,10 @@ class QuantumCrypto {
     constructor() {
         this.algorithm = 'AES-GCM';
         this.keyLength = 256;
+        if (!window.crypto || !window.crypto.subtle) {
+            console.error('Web Crypto API not supported. This app requires a secure context (HTTPS or localhost).');
+            throw new Error('Web Crypto API not supported. Please use HTTPS or localhost.');
+        }
     }
 
     // Generate a quantum-inspired encryption key (simulated)

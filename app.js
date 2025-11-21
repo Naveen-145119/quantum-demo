@@ -7,6 +7,10 @@ let selectedFile = null;
 // Initialize Appwrite
 function initAppwrite() {
     try {
+        if (typeof APPWRITE_CONFIG === 'undefined') {
+            throw new Error('Appwrite configuration is missing. Please check appwrite-config.js.');
+        }
+
         client = new Appwrite.Client()
             .setEndpoint(APPWRITE_CONFIG.endpoint)
             .setProject(APPWRITE_CONFIG.projectId);
@@ -167,6 +171,16 @@ async function handleSecureUpload() {
         return;
     }
 
+    if (!window.isSecureContext) {
+        showToast('Secure upload requires HTTPS or localhost', 'error');
+        return;
+    }
+
+    if (typeof quantumCrypto === 'undefined') {
+        showToast('Encryption module not loaded', 'error');
+        return;
+    }
+
     showLoading(true);
     const statusEl = document.getElementById('uploadStatus');
     statusEl.className = 'status-message';
@@ -180,9 +194,12 @@ async function handleSecureUpload() {
         const encryptionKey = await quantumCrypto.generateQuantumKey();
         const keyString = await quantumCrypto.exportKey(encryptionKey);
 
+        // Convert FileList to Array to avoid issues if the list changes
+        const filesToUpload = Array.from(selectedFile);
+
         // Upload each file
-        for (let i = 0; i < selectedFile.length; i++) {
-            const file = selectedFile[i];
+        for (let i = 0; i < filesToUpload.length; i++) {
+            const file = filesToUpload[i];
             
             try {
                 // Encrypt the file
@@ -233,18 +250,23 @@ async function handleSecureUpload() {
             : `⚠️ ${uploadCount} file(s) uploaded, ${errorCount} failed.`;
         
         statusEl.textContent = message;
-        statusEl.classList.add('success', 'show');
-        showToast(`Uploaded ${uploadCount} file(s)!`, 'success');
+        statusEl.classList.add(errorCount === 0 ? 'success' : 'error', 'show');
+        
+        if (uploadCount > 0) {
+            showToast(`Uploaded ${uploadCount} file(s)!`, 'success');
+            
+            // Reset file input
+            document.getElementById('fileInput').value = '';
+            document.getElementById('folderInput').value = '';
+            selectedFile = null;
+            document.getElementById('selectedFileName').textContent = '';
+            document.getElementById('uploadBtn').disabled = true;
 
-        // Reset file input
-        document.getElementById('fileInput').value = '';
-        document.getElementById('folderInput').value = '';
-        selectedFile = null;
-        document.getElementById('selectedFileName').textContent = '';
-        document.getElementById('uploadBtn').disabled = true;
-
-        // Reload file list
-        loadUserFiles();
+            // Reload file list
+            loadUserFiles();
+        } else {
+            showToast('Upload failed for all files', 'error');
+        }
 
     } catch (error) {
         console.error('Upload error:', error);
