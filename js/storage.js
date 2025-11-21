@@ -1,249 +1,11 @@
-// Main Application Logic with Appwrite Integration
-
-let client, account, databases, storage;
-let currentUser = null;
-let selectedFile = null;
-let isFolderUpload = false;
-
-// Initialize Appwrite
-function initAppwrite() {
-    try {
-        if (typeof APPWRITE_CONFIG === 'undefined') {
-            throw new Error('Appwrite configuration is missing. Please check appwrite-config.js.');
-        }
-
-        client = new Appwrite.Client()
-            .setEndpoint(APPWRITE_CONFIG.endpoint)
-            .setProject(APPWRITE_CONFIG.projectId);
-
-        account = new Appwrite.Account(client);
-        databases = new Appwrite.Databases(client);
-        storage = new Appwrite.Storage(client);
-
-        console.log('Appwrite initialized successfully');
-        checkSession();
-    } catch (error) {
-        showToast('Failed to initialize app. Please check configuration.', 'error');
-        console.error('Appwrite initialization error:', error);
-    }
-}
-
-// Check if user is already logged in
-async function checkSession() {
-    try {
-        const session = await account.get();
-        if (session) {
-            currentUser = session;
-            showDashboard();
-        }
-    } catch (error) {
-        // No active session, stay on main menu
-        console.log('No active session');
-    }
-}
-
-// Screen Navigation
-function showMain() {
-    hideAllScreens();
-    document.getElementById('mainMenu').classList.add('active');
-}
-
-function showRegister() {
-    hideAllScreens();
-    document.getElementById('registerScreen').classList.add('active');
-    document.getElementById('registerForm').reset();
-}
-
-function showLogin() {
-    hideAllScreens();
-    document.getElementById('loginScreen').classList.add('active');
-    document.getElementById('loginForm').reset();
-}
-
-function showDashboard() {
-    hideAllScreens();
-    document.getElementById('dashboardScreen').classList.add('active');
-    document.getElementById('dashboardUser').textContent = currentUser.name || currentUser.email;
-}
-
-function showCreateVault() {
-    hideAllScreens();
-    document.getElementById('createVaultScreen').classList.add('active');
-    document.getElementById('createVaultForm').reset();
-}
-
-function showVaultAuth() {
-    hideAllScreens();
-    document.getElementById('vaultAuthScreen').classList.add('active');
-    document.getElementById('vaultAuthForm').reset();
-}
-
-function showUpload() {
-    hideAllScreens();
-    document.getElementById('uploadScreen').classList.add('active');
-    // document.getElementById('currentUser').textContent = currentUser.name || currentUser.email; // Removed as it's now in dashboard
-}
-
-function hideAllScreens() {
-    document.querySelectorAll('.screen').forEach(screen => {
-        screen.classList.remove('active');
-    });
-}
-
-// Registration Handler
-async function handleRegister(event) {
-    event.preventDefault();
-    
-    const username = document.getElementById('regUsername').value;
-    const password = document.getElementById('regPassword').value;
-    const email = document.getElementById('regEmail').value;
-    const mobile = document.getElementById('regMobile').value;
-
-    showLoading(true);
-
-    try {
-        // Create account in Appwrite
-        const userId = Appwrite.ID.unique();
-        await account.create(userId, email, password, username);
-
-        // Store additional user data in database
-        await databases.createDocument(
-            APPWRITE_CONFIG.databaseId,
-            APPWRITE_CONFIG.userDataCollectionId,
-            userId,
-            {
-                username: username,
-                email: email,
-                mobile: mobile,
-                registeredAt: new Date().toISOString()
-            }
-        );
-
-        showToast('Registration successful! Please login.', 'success');
-        showLogin();
-    } catch (error) {
-        console.error('Registration error:', error);
-        showToast(error.message || 'Registration failed. Please try again.', 'error');
-    } finally {
-        showLoading(false);
-    }
-}
-
-// Login Handler
-async function handleLogin(event) {
-    event.preventDefault();
-    
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
-
-    showLoading(true);
-
-    try {
-        // Create email session
-        await account.createEmailPasswordSession(email, password);
-        
-        // Get current user
-        currentUser = await account.get();
-        
-        showToast(`Welcome back, ${currentUser.name}!`, 'success');
-        showDashboard();
-    } catch (error) {
-        console.error('Login error:', error);
-        showToast('Invalid credentials. Please try again.', 'error');
-    } finally {
-        showLoading(false);
-    }
-}
-
-// Dashboard Actions
-function handleOpenVault() {
-    if (currentUser.prefs && currentUser.prefs.vaultHash) {
-        showVaultAuth();
-    } else {
-        showCreateVault();
-    }
-}
-
-// Create Vault Handler
-async function handleCreateVault(event) {
-    event.preventDefault();
-    const pass = document.getElementById('newVaultPass').value;
-    const confirmPass = document.getElementById('confirmVaultPass').value;
-
-    if (pass !== confirmPass) {
-        showToast('Passphrases do not match', 'error');
-        return;
-    }
-
-    showLoading(true);
-
-    try {
-        // Hash the vault passphrase
-        const vaultHash = await quantumCrypto.hashPassphrase(pass);
-
-        // Store vault hash in user preferences
-        await account.updatePrefs({ vaultHash: vaultHash });
-        
-        // Update local user object
-        currentUser = await account.get();
-
-        showToast('Vault created successfully!', 'success');
-        showUpload();
-        loadUserFiles();
-    } catch (error) {
-        console.error('Create vault error:', error);
-        showToast('Failed to create vault', 'error');
-    } finally {
-        showLoading(false);
-    }
-}
-
-// Vault Unlock Handler
-async function handleVaultUnlock(event) {
-    event.preventDefault();
-    const enteredPass = document.getElementById('vaultPass').value;
-    
-    showLoading(true);
-    
-    try {
-        const enteredHash = await quantumCrypto.hashPassphrase(enteredPass);
-        
-        if (enteredHash === currentUser.prefs.vaultHash) {
-            showToast('Vault Unlocked!', 'success');
-            showUpload();
-            loadUserFiles();
-        } else {
-            showToast('Incorrect passphrase', 'error');
-            document.getElementById('vaultPass').value = '';
-        }
-    } catch (error) {
-        console.error('Vault unlock error:', error);
-        showToast('Error unlocking vault', 'error');
-    } finally {
-        showLoading(false);
-    }
-}
-
-// Logout Handler
-async function handleLogout() {
-    try {
-        await account.deleteSession('current');
-        currentUser = null;
-        selectedFile = null;
-        showToast('Logged out successfully', 'info');
-        showMain();
-    } catch (error) {
-        console.error('Logout error:', error);
-        showToast('Failed to logout', 'error');
-    }
-}
+// File Storage and Encryption Logic
 
 // File Selection Handler
-function handleFileSelect(event) {
+window.handleFileSelect = function(event) {
     const files = event.target.files;
     if (files && files.length > 0) {
-        selectedFile = files;
-        isFolderUpload = event.target.id === 'folderInput';
+        window.selectedFile = files;
+        window.isFolderUpload = event.target.id === 'folderInput';
         const fileCount = files.length;
         const fileName = isFolderUpload 
             ? `📁 Folder selected (${fileCount} files)` 
@@ -254,7 +16,7 @@ function handleFileSelect(event) {
 }
 
 // Secure Upload Handler
-async function handleSecureUpload() {
+window.handleSecureUpload = async function() {
     if (!selectedFile || selectedFile.length === 0) {
         showToast('Please select files first', 'error');
         return;
@@ -371,8 +133,6 @@ async function handleSecureUpload() {
                     );
 
                     // Store encryption key in database (linked to user and file)
-                    // Note: filePath is not a standard attribute in the collection, so we'll omit it if it's not needed
-                    // or ensure the collection has this attribute. For now, let's remove it to fix the error.
                     await databases.createDocument(
                         APPWRITE_CONFIG.databaseId,
                         APPWRITE_CONFIG.encryptionKeysCollectionId,
@@ -381,9 +141,6 @@ async function handleSecureUpload() {
                             userId: currentUser.$id,
                             fileId: fileId,
                             fileName: file.name,
-                            // filePath: file.webkitRelativePath || file.name, // Removed to fix "Unknown attribute: filePath" error
-                            // fileSize: file.size, // Removed to fix "Unknown attribute: fileSize" error
-                            // fileType: file.type, // Removed to prevent potential "Unknown attribute: fileType" error
                             encryptionKey: keyString,
                             uploadedAt: new Date().toISOString()
                         }
@@ -432,7 +189,7 @@ async function handleSecureUpload() {
 }
 
 // Load User's Encrypted Files
-async function loadUserFiles() {
+window.loadUserFiles = async function() {
     if (!currentUser) return;
 
     try {
@@ -492,7 +249,7 @@ async function loadUserFiles() {
 }
 
 // Delete File
-async function deleteFile(fileId, docId, fileName) {
+window.deleteFile = async function(fileId, docId, fileName) {
     if (!confirm(`Are you sure you want to delete "${fileName}"? This action cannot be undone.`)) {
         return;
     }
@@ -523,7 +280,7 @@ async function deleteFile(fileId, docId, fileName) {
 }
 
 // Download and Decrypt File
-async function downloadFile(fileId, keyDocId, originalFileName) {
+window.downloadFile = async function(fileId, keyDocId, originalFileName) {
     showLoading(true);
 
     try {
@@ -596,28 +353,3 @@ async function downloadFile(fileId, keyDocId, originalFileName) {
         showLoading(false);
     }
 }
-
-// UI Helper Functions
-function showLoading(show) {
-    const overlay = document.getElementById('loadingOverlay');
-    if (show) {
-        overlay.classList.add('active');
-    } else {
-        overlay.classList.remove('active');
-    }
-}
-
-function showToast(message, type = 'info') {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.className = `toast show ${type}`;
-    
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
-}
-
-// Initialize app when page loads
-document.addEventListener('DOMContentLoaded', () => {
-    initAppwrite();
-});
