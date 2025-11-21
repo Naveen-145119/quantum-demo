@@ -13,15 +13,15 @@
             <h1>🔐 Quantum Secure File Upload System</h1>
             <p class="subtitle">Secure your files with quantum-inspired encryption</p>
             <div class="button-group">
-                <button class="btn btn-primary" onclick="showRegister()">Register</button>
-                <button class="btn btn-secondary" onclick="showLogin()">Login</button>
+                <button id="btn-show-register" class="btn btn-primary">Register</button>
+                <button id="btn-show-login" class="btn btn-secondary">Login</button>
             </div>
         </div>
 
         <!-- Registration Screen -->
         <div id="registerScreen" class="screen">
             <h2>Register New Account</h2>
-            <form id="registerForm" onsubmit="handleRegister(event)">
+            <form id="registerForm">
                 <div class="form-group">
                     <label for="regUsername">Username</label>
                     <input type="text" id="regUsername" required>
@@ -40,15 +40,15 @@
                 </div>
                 <div class="button-group">
                     <button type="submit" class="btn btn-primary">Register</button>
-                    <button type="button" class="btn btn-secondary" onclick="showMain()">Back</button>
+                    <button type="button" class="btn btn-secondary btn-back">Back</button>
                 </div>
             </form>
         </div>
 
-        <!-- Login Screen -->
+                <!-- Login Screen -->
         <div id="loginScreen" class="screen">
             <h2>Login</h2>
-            <form id="loginForm" onsubmit="handleLogin(event)">
+            <form id="loginForm">
                 <div class="form-group">
                     <label for="loginEmail">Email</label>
                     <input type="email" id="loginEmail" required>
@@ -59,9 +59,25 @@
                 </div>
                 <div class="button-group">
                     <button type="submit" class="btn btn-primary">Login</button>
-                    <button type="button" class="btn btn-secondary" onclick="showMain()">Back</button>
+                    <button type="button" class="btn btn-secondary btn-back">Back</button>
                 </div>
             </form>
+        </div>
+
+        <!-- Dashboard Screen -->
+        <div id="dashboardScreen" class="screen">
+            <div class="header">
+                <h2>Welcome, <span id="dashboardUser">User</span></h2>
+                <button class="btn btn-secondary btn-logout">Logout</button>
+            </div>
+            
+            <div class="dashboard-actions">
+                <div class="card">
+                    <h3>🔐 Secure Vault</h3>
+                    <p>Access your encrypted files</p>
+                    <button id="btn-open-vault" class="btn btn-primary">Open Vault</button>
+                </div>
+            </div>
         </div>
 
         <!-- Dashboard Screen -->
@@ -88,7 +104,7 @@
             <h2>🆕 Setup Vault</h2>
             <p class="subtitle">Create a secure passphrase for your vault</p>
             <p class="info-text">This passphrase will be required every time you access your files. Don't forget it!</p>
-            <form id="createVaultForm" onsubmit="handleCreateVault(event)">
+            <form id="createVaultForm">
                 <div class="form-group">
                     <label for="newVaultPass">New Passphrase</label>
                     <input type="password" id="newVaultPass" required minlength="4">
@@ -99,7 +115,7 @@
                 </div>
                 <div class="button-group">
                     <button type="submit" class="btn btn-primary">Create Vault</button>
-                    <button type="button" class="btn btn-secondary" onclick="showDashboard()">Cancel</button>
+                    <button type="button" class="btn btn-secondary btn-dashboard">Cancel</button>
                 </div>
             </form>
         </div>
@@ -108,14 +124,14 @@
         <div id="vaultAuthScreen" class="screen">
             <h2>🔐 Unlock Vault</h2>
             <p class="subtitle">Enter your passphrase to access files</p>
-            <form id="vaultAuthForm" onsubmit="handleVaultUnlock(event)">
+            <form id="vaultAuthForm">
                 <div class="form-group">
                     <label for="vaultPass">Vault Passphrase</label>
                     <input type="password" id="vaultPass" required>
                 </div>
                 <div class="button-group">
                     <button type="submit" class="btn btn-primary">Unlock</button>
-                    <button type="button" class="btn btn-secondary" onclick="showDashboard()">Back</button>
+                    <button type="button" class="btn btn-secondary btn-dashboard">Back</button>
                 </div>
             </form>
         </div>
@@ -124,7 +140,7 @@
         <div id="uploadScreen" class="screen">
             <div class="header-row">
                 <h2>Secure File Vault</h2>
-                <button class="btn btn-secondary btn-small" onclick="showDashboard()">Close Vault</button>
+                <button class="btn btn-secondary btn-small btn-dashboard">Close Vault</button>
             </div>
             <p class="welcome-text">Vault Unlocked <span id="currentUser" style="display:none"></span></p>
             
@@ -133,23 +149,23 @@
                     <div class="file-selector">
                         <label for="fileInput" class="file-label">
                             <span>📄 Select Files</span>
-                            <input type="file" id="fileInput" multiple onchange="handleFileSelect(event)">
+                            <input type="file" id="fileInput" multiple>
                         </label>
                     </div>
                     <div class="file-selector">
                         <label for="folderInput" class="file-label">
                             <span>📁 Select Folder</span>
-                            <input type="file" id="folderInput" multiple webkitdirectory mozdirectory msdirectory odirectory directory onchange="handleFileSelect(event)">
+                            <input type="file" id="folderInput" multiple webkitdirectory mozdirectory msdirectory odirectory directory>
                         </label>
                     </div>
                 </div>
                 <div id="selectedFileName" class="selected-file-name"></div>
 
                 <div class="button-group">
-                    <button class="btn btn-primary" onclick="handleSecureUpload()" id="uploadBtn" disabled>
+                    <button class="btn btn-primary" id="uploadBtn" disabled>
                         🔒 Secure Upload
                     </button>
-                    <button class="btn btn-secondary" onclick="handleLogout()">Logout</button>
+                    <button class="btn btn-secondary btn-logout">Logout</button>
                 </div>
 
                 <div id="uploadStatus" class="status-message"></div>
@@ -178,12 +194,12 @@
     
     <!-- Application Scripts -->
     <!-- Optional: appwrite-env.js can be deployed with the site to inject environment values -->
-    <script src="appwrite-env.js"></script>
-    <script src="js/appwrite-config.js?v=3"></script>
-    <script src="js/crypto.js?v=3"></script>
-    <script src="js/ui.js?v=3"></script>
-    <script src="js/auth.js?v=3"></script>
-    <script src="js/storage.js?v=3"></script>
-    <script src="js/main.js?v=3"></script>
+    <!-- <script src="appwrite-env.js"></script> -->
+    <script src="js/appwrite-config.js?v=4"></script>
+    <script src="js/crypto.js?v=4"></script>
+    <script src="js/ui.js?v=4"></script>
+    <script src="js/auth.js?v=4"></script>
+    <script src="js/storage.js?v=4"></script>
+    <script src="js/main.js?v=4"></script>
 </body>
 </html>

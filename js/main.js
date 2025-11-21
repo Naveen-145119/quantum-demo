@@ -12,4 +12,7 @@ window.isFolderUpload = false;
 // Initialize app when page loads
 document.addEventListener('DOMContentLoaded', () => {
     initAppwrite();
+    if (window.initUIListeners) {
+        initUIListeners();
+    }
 });
