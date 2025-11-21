@@ -4,11 +4,30 @@ A web-based secure file upload system with quantum-inspired encryption, powered 
 
 ## Features
 
-- ✅ User Registration & Authentication
-- ✅ Quantum-inspired File Encryption (AES-256-GCM)
-- ✅ Secure File Storage with Appwrite
-- ✅ Download & Decrypt Files
-- ✅ Beautiful Responsive UI
+- ✅ **User Registration & Authentication**: Secure login system.
+- ✅ **Secure Vault**: Personal vault protected by a secondary passphrase.
+- ✅ **Quantum-inspired Encryption**: AES-256-GCM encryption for all files.
+- ✅ **Folder Uploads**: Support for uploading entire folders (automatically zipped).
+- ✅ **Secure Storage**: Files are encrypted before being stored in Appwrite.
+- ✅ **File Management**: Download (auto-decrypt) and delete files.
+- ✅ **Responsive UI**: Modern, clean interface.
+
+## 📂 Project Structure
+
+```
+quantum-demo/
+├── index.html          # Main entry point
+├── styles.css          # Application styling
+├── js/                 # Application Logic
+│   ├── main.js         # App initialization
+│   ├── auth.js         # Authentication & Vault logic
+│   ├── storage.js      # File upload/download/delete logic
+│   ├── crypto.js       # Encryption & Hashing utilities
+│   ├── ui.js           # UI interactions
+│   └── appwrite-config.js # Appwrite configuration
+├── appwrite.json       # Appwrite CLI config
+└── package.json        # Project dependencies & scripts
+```
 
 ## 🚀 Quick Start - Deploy to Appwrite
 

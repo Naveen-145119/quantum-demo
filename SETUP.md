@@ -46,6 +46,8 @@
      - Update: role:user
      - Delete: role:user
 
+> **Note:** The Vault Passphrase is stored securely as a hash in the User's Preferences (`vaultHash`), so no separate collection is needed for it.
+
 #### Storage Setup:
 1. Go to **Storage** → Create Bucket
    - Bucket ID: `encrypted-files`
