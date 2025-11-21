@@ -393,6 +393,9 @@ async function loadUserFiles() {
                         <button class="btn btn-primary btn-small" onclick="downloadFile('${doc.fileId}', '${doc.$id}', '${doc.fileName}')">
                             Download
                         </button>
+                        <button class="btn btn-danger btn-small" onclick="deleteFile('${doc.fileId}', '${doc.$id}', '${doc.fileName}')">
+                            Delete
+                        </button>
                     </div>
                 </div>
             `;
@@ -400,6 +403,37 @@ async function loadUserFiles() {
 
     } catch (error) {
         console.error('Error loading files:', error);
+    }
+}
+
+// Delete File
+async function deleteFile(fileId, docId, fileName) {
+    if (!confirm(`Are you sure you want to delete "${fileName}"? This action cannot be undone.`)) {
+        return;
+    }
+
+    showLoading(true);
+
+    try {
+        // 1. Delete file from Storage
+        await storage.deleteFile(APPWRITE_CONFIG.bucketId, fileId);
+
+        // 2. Delete metadata from Database
+        await databases.deleteDocument(
+            APPWRITE_CONFIG.databaseId,
+            APPWRITE_CONFIG.encryptionKeysCollectionId,
+            docId
+        );
+
+        showToast(`Deleted "${fileName}" successfully`, 'success');
+        
+        // Reload list
+        loadUserFiles();
+    } catch (error) {
+        console.error('Delete error:', error);
+        showToast('Failed to delete file: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
     }
 }
 

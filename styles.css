@@ -147,6 +147,17 @@ h3 {
     background: #e0e0e0;
 }
 
+.btn-danger {
+    background: #ff4d4d;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #ff3333;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 77, 77, 0.4);
+}
+
 .upload-section {
     margin: 20px 0;
 }
